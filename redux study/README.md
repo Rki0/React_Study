@@ -334,3 +334,325 @@ reportWebVitals();
 ```
 
 이제 Provider로 감싼 곳에서는 렌더링하는 그 어떤 컴포넌트던지 스토어에 접근할 수 있게 되었다.
+
+## 👀 presentational 컴포넌트, container 컴포넌트 만들기
+
+presentational 컴포넌트란, 리덕스 스토어에 직접적으로 접근하지 않고 필요한 값 또는 함수를 props로만 받아와서 사용하는 컴포넌트이다.  
+주로 UI 선언에 집중한다.  
+예시를 살펴보자.
+
+### components/Counter.js
+
+```js
+import React from "react";
+
+// 필요한 값 또는 함수를 props로만 받아와서 사용한다.
+function Counter({ number, diff, onIncrease, onDecrease, onSetDiff }) {
+  const onChange = (e) => {
+    // e.target.value의 타입은 문자열이기 때문에 숫자로 변환해야한다.
+    // 여기서는 10진수로 변환하겠다는 뜻.
+    onSetDiff(parseInt(e.target.value, 10));
+  };
+
+  return (
+    <div>
+      <h1>{number}</h1>
+      <div>
+        <input type="number" value={diff} min="1" onChange={onChange} />
+        <button onClick={onIncrease}>+</button>
+        <button onClick={onDecrease}>-</button>
+      </div>
+    </div>
+  );
+}
+
+export default Counter;
+```
+
+container 컴포넌트는 리덕스 스토어의 상태를 조회하거나, 액션을 디스패치 할 수 있는 컴포넌트를 의미한다.  
+HTML 태그들을 사용하지 않고 다른 presentational 컴포넌트들을 불러와서 사용한다.  
+예시를 살펴보자.
+
+### containers/CounterContainer.js
+
+```js
+import React from "react";
+import { useDispatch, useSelector } from "react-redux";
+import Counter from "../components/Counter";
+import { increase, decrease, setDiff } from "../modules/counter";
+
+function CounterContainer() {
+  // useSelector는 리더스 스토어의 상태를 조회하는 Hook
+  // state는 store.getState()를 호출했을 때와 동일한 결과값
+  const { number, diff } = useSelector((state) => ({
+    number: state.counter.number,
+    diff: state.counter.diff,
+  }));
+
+  // useDispatch는 리덕스 스토어의 dispatch를 함수에서 사용 가능하게 해주는 Hook
+  const dispatch = useDispatch();
+
+  // 각 액션을 디스패치하는 함수를 만든다.
+  const onIncrease = () => dispatch(increase());
+  const onDecrease = () => dispatch(decrease());
+  const onSetDiff = (diff) => dispatch(setDiff(diff));
+
+  return (
+    <Counter
+      // 상태와
+      number={number}
+      diff={diff}
+      // 액션을 디스패치하는 함수들을 props로 넣어줌
+      onIncrease={onIncrease}
+      onDecrease={onDecrease}
+      onSetDiff={onSetDiff}
+    />
+  );
+}
+
+export default CounterContainer;
+```
+
+이렇게 presentational 컴포넌트와 container 컴포넌트를 분리해서 작업하는 것은 Redux의 창시자가 이 방법을 소개했기 때문이다.  
+하지만, 꼭 이렇게 폴더를 나눠서 할 필요는 없다.  
+취향에 맞춰 선택하자.
+
+## 👀 Redux 개발자 도구 적용하기
+
+이 부분은 크롬 앱에서 extension을 설치하는 것이므로, 하고 싶다면 하고 아니면 말자.  
+redux-devtools-extension을 설치하면 현재 스토어의 상태를 개발자 도구에서 조회할 수 있고, 지금까지 어떤 액션들이 디스패치 되었는지, 액션에 따라 상태가 어떻게 변화했는지 확인 할 수 있다. 또한, 액션을 직접 디스패치 할 수도 있다.  
+사용법은 아래와 같다.
+
+### src/index.js
+
+```js
+import React from "react";
+import ReactDOM from "react-dom";
+import "./index.css";
+import App from "./App";
+import reportWebVitals from "./reportWebVitals";
+import { createStore } from "redux";
+import rootReducer from "./modules";
+import { Provider } from "react-redux";
+import { composeWithDevTools } from "redux-devtools-extension";
+
+// composeWithDevTools를 사용하여 Redux 개발자 도구 활성화
+const store = createStore(rootReducer, composeWithDevTools());
+
+ReactDOM.render(
+  <React.StrictMode>
+    <Provider store={store}>
+      <App />
+    </Provider>
+  </React.StrictMode>,
+  document.getElementById("root")
+);
+
+reportWebVitals();
+```
+
+## 👀 할 일 목록 구현하기
+
+이번에는 할 일 목록을 통해 연습해보자.  
+presentational 컴포넌트를 먼저 구현해보자.
+
+### components/Todos.js
+
+```js
+// presentational 컴포넌트 구현
+
+import React, { useState } from "react";
+
+// 컴포넌트 최적화를 위하여 React.memo를 사용한다.
+const TodoItem = React.memo(function TodoItem({ todo, onToggle }) {
+  return (
+    <li
+      // 이 부분에서 todo.done이 정의가 없었음에도 어떻게 동작이 가능한지 궁금할 것이다.
+      // 현재 todo.done은 undefined 상태로 굳이 따지면 false로 인식된다.
+      // 따라서 todo.done을 초기화하지 않아도 동작하게 되며
+      // onToggle()로 인해 undefined -> true -> false -> true -> false...
+      // 이런 식으로 동작하게 된다.
+      style={{ textDecoration: todo.done ? "line-through" : "none" }}
+      onClick={() => onToggle(todo.id)}
+    >
+      {todo.text}
+    </li>
+  );
+});
+
+// 컴포넌트 최적화를 위하여 React.memo를 사용한다.
+const TodoList = React.memo(function TodoList({ todos, onToggle }) {
+  return (
+    <ul>
+      {todos.map((todo) => (
+        <TodoItem key={todo.id} todo={todo} onToggle={onToggle} />
+      ))}
+    </ul>
+  );
+});
+
+function Todos({ todos, onCreate, onToggle }) {
+  // Redux를 사용한다고 해서 모든 상태를 Redux에서 관리해야만 하는 것은 아니다!
+  const [text, setText] = useState("");
+
+  const onChange = (e) => setText(e.target.value);
+
+  const onSubmit = (e) => {
+    e.preventDefault();
+    onCreate(text);
+    setText("");
+  };
+
+  return (
+    <div>
+      <form onSubmit={onSubmit}>
+        <input
+          value={text}
+          placeholder="Write Your To-Do"
+          onChange={onChange}
+        />
+        <button type="submit">Add</button>
+      </form>
+      <TodoList todos={todos} onToggle={onToggle} />
+    </div>
+  );
+}
+
+export default Todos;
+```
+
+이번에는 container 컴포넌트를 만들어보자.
+
+### containers/TodosContainer.js
+
+```js
+// container 컴포넌트
+import React, { useCallback } from "react";
+import { useSelector, useDispatch } from "react-redux";
+import Todos from "../components/Todos";
+import { addTodo, toggleTodo } from "../modules/todos";
+
+function TodosContainer() {
+  // useSelector에서 꼭 객체를 반환 할 필요는 없다.
+  // 한 종류의 값만 조회하고 싶으면 그냥 원하는 값만 바로 반환하면 된다.
+  const todos = useSelector((state) => state.todos);
+
+  const dispatch = useDispatch();
+
+  const onCreate = (text) => dispatch(addTodo(text));
+
+  // 최적화를 위해 useCallback 사용.
+  const onToggle = useCallback((id) => dispatch(toggleTodo(id), [dispatch]));
+
+  return <Todos todos={todos} onCreate={onCreate} onToggle={onToggle} />;
+}
+
+export default TodosContainer;
+```
+
+이제 App.js에 넣어줘서 렌더링을 해보자.
+
+### src/App.js
+
+```js
+import React from "react";
+import CounterContainer from "./containers/CounterContainer";
+import TodosContainer from "./containers/TodosContainer";
+
+function App() {
+  return (
+    <div>
+      <CounterContainer />
+      <hr />
+      <TodosContainer />
+    </div>
+  );
+}
+
+export default App;
+```
+
+counter와 todo-list가 잘 동작하는 것을 확인 할 수 있다.
+
+## 👀 useSelector 최적화
+
+렌더링이 되는 것을 확인하는 리액트 익스텐션으로 확인해본 결과,  
+counter가 동작할 때는 todo-list에 리렌더링이 발생하지 않지만,  
+todos가 동작할 때는 counter가 리렌더링이 되는 것을 확인 할 수 있었다.  
+이를 개선하기 위해 useSelector()를 살펴볼 것이다.
+
+지금까지 작성한 container 컴포넌트가 두 개 있는데,  
+TodosContainer, CounterContainer가 그 것이다.  
+여기서 useSelector를 사용해서 리덕스 스토어에 접근했었다.
+
+기본적으로 useSelector를 사용해서 리덕스 스토어의 상태를 조회 할 때는, 상태가 바뀌지않았다면 리렌더링을 하지 않는다.  
+이 점을 기억하고 코드를 살펴보자.
+
+### containers/TodosContainer.js
+
+```js
+const todos = useSelector((state) => state.todos);
+```
+
+TodoContainer에서는 counter의 값이 변하더라도 todos 값엔 변화가 없으므로 리렌더링이 되지않는다.
+
+### containers/CounterContainer.js
+
+```js
+const { number, diff } = useSelector((state) => ({
+  number: state.counter.number,
+  diff: state.counter.diff,
+}));
+```
+
+CounterContainer에서는 useSelector를 통해 렌더링 될 때마다 새로운 객체 {number, diff} 를 만들기 때문에, 상태가 바뀐건지 아닌지를 확인 할 수가 없으므로 낭비 렌더링이 발생한다.
+
+이러한 낭비 렌더링을 최적화 하는데는 두 가지 방법이 있다.
+
+1. useSelector 여러번 사용하기  
+   코드를 다음과 같이 수정해보도록 하겠다.
+
+```js
+const number = useSelector((state) => state.counter.number);
+const diff = useSelector((state) => state.counter.diff);
+```
+
+이렇게 하면 해당 값들 중 하나라도 바뀌었을 때에만 컴포넌트가 리렌더링 된다.
+
+2. shallowEqual 함수를 useSelector의 두 번째 인자로 전달해주기  
+   코드를 다음과 같이 수정해보도록 하겠다.  
+   변경되는 부분만 작성한 것이다.
+
+```js
+import { useSelector, useDispatch, shallowEqual } from "react-redux";
+
+const { number, diff } = useSelector(
+  (state) => ({
+    number: state.counter.number,
+    diff: state.counter.diff,
+  }),
+  shallowEqual
+);
+```
+
+useSelector의 두 번째 파라미터는 equalityFn인데,  
+이전 값과 다음 값을 비교하여 true가 나오면 리렌더링을 하지않고, false가 나오면 리렌더링을 하는 것이다.  
+shallowEqual(직역하자면 얕은 일치..?)은 react-redux 내장 함수로서, 객체 안의 가장 겉에 있는 값들을 모두 비교해준다.  
+이게 무슨 말인가 하니, 만약 다음과 같은 객체가 있다고 하면
+
+```js
+const object = {
+  a: {
+    x: 3,
+    y: 2,
+    z: 1,
+  },
+  b: 1,
+  c: [{ id: 1 }],
+};
+```
+
+가장 겉에 있는 값은 object.a, object.b, object.c 이다.  
+shallowEqual은 해당 값들만 비교하고, object.a.x나 object.c[0]은 비교하지 않는다는 것이다.
+
+이렇게 둘 중 하나의 방식으로 최적화를 해주면, container 컴포넌트가 필요한 상황에만 리렌더링 될 것이다.
