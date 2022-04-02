@@ -154,8 +154,9 @@ const data = {
 
 const Profile = () => {
   const params = useParams();
-  // username은 Route 컴포넌트에 넣을 URL 파라미터의 이름이다.
-  // profile은 data 객체의 key 값을 가지게 될 것이다.
+  // username은 URL 파라미터의 이름으로 Route의 path prop에서 정한다.
+  // username이라는 URL 파라미터를 통해 data 객체를 조회한다.
+  // profile은 velopert, gildong 같은 key 값을 가지게 됨.
   const profile = data[params.username];
 
   return (
